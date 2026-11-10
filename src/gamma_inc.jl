@@ -1019,7 +1019,7 @@ end
 
 @typed_literals T function __gamma_inc_inv(a::T, minpq::T, pcase::Bool) where {T<:AbstractFloat}
     haseta = false
-    fp = NaN
+    fp = T(NaN)
 
     logp = pcase ? log(minpq) : log1p(-minpq)
     loggamma1pa = a <= 1.0 ? loggamma1p(a) : loggamma(a + 1.0)
