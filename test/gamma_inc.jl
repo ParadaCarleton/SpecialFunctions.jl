@@ -436,3 +436,17 @@ end
     @test @inferred(gamma_inc_inv(2f0, 0.5f0, 0.5f0)) isa Float32
     @test gamma_inc_inv(Float16(2), Float16(0.5), Float16(0.5)) isa Float16
 end
+
+@testset "gamma_inc Float32 computes in Float32" begin
+    for a in Float32[0.01, 0.1, 0.5, 0.9, 1, 1.5, 2.5, 3, 10, 24, 26, 30, 100, 1000],
+        x in Float32[1e-4, 0.01, 0.1, 0.5, 1, 2, 5, 10, 25, 30, 40, 100, 500, 1100]
+        result = gamma_inc(a, x)
+        @test result isa Tuple{Float32,Float32}
+        reference = gamma_inc(Float64(a), Float64(x))
+        for (computed, expected) in zip(result, reference)
+            # Skip references too small for a relative comparison.
+            expected > 1e-30 && @test computed ≈ expected rtol=3e-5
+        end
+    end
+    @test @inferred(gamma_inc(2f0, 1f0)) isa Tuple{Float32,Float32}
+end
