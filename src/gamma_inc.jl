@@ -10,12 +10,21 @@ macro typed_literals(T, ex)
 end
 _typed_literals(T, x::Float64) = Expr(:call, T, x)
 _typed_literals(T, x::Expr) = Expr(x.head, map(arg -> _typed_literals(T, arg), x.args)...)
+const FLOAT_CONSTANTS = (:d00, :d0, :d10, :d1, :d20, :d2, :d30, :d3, :d40, :d4, :d50, :d5, :d60, :d6, :d70, :d80, :rt2pin, :rtpi, :big1, :e0, :x0lim)
+_typed_literals(T, x::Symbol) = x in FLOAT_CONSTANTS ? Expr(:., T, Expr(:tuple, x)) : x
 _typed_literals(T, x) = x
+
+"""
+    gamma_inc_accuracy(T, ind)
+
+Tolerance of accuracy level `ind`, no smaller than `2eps(T)` so series loops can finish.
+"""
+gamma_inc_accuracy(::Type{T}, ind::Integer) where {T<:AbstractFloat} = max(T(acc0[ind + 1]), 2 * eps(T))
 #useful constants
 const acc0 = (5.0e-15, 5.0e-7, 5.0e-4) #accuracy options
 const big1 = (25.0, 14.0, 10.0)
 const e0 = (0.25e-3, 0.25e-1, 0.14)
-const x0 = (31.0, 17.0, 9.7)
+const x0lim = (31.0, 17.0, 9.7)
 const alog10 = log(10)
 const rt2pin = Float64(invsqrt2π)
 const rtpi = Float64(sqrtπ)
@@ -48,7 +57,7 @@ Computation of ``1/\Gamma(a+1) - 1`` for `-0.5<=a<=1.5`: ``1/\Gamma (a+1) - 1``.
 
 Uses the relation `gamma(a+1) = a*gamma(a)`.
 """
-function rgamma1pm1(a::Float64)
+@typed_literals T function rgamma1pm1(a::T) where {T<:AbstractFloat}
     @assert -0.5 <= a <= 1.5
     t = a
     rangereduce = a > 0.5
@@ -73,7 +82,7 @@ end
 
 Evaluation of ``1/\Gamma(a) e^{-x} x^{a}``. Based on `DRCOMP` from the `NSWC` library.
 """
-function rgammax(a::Float64, x::Float64)
+@typed_literals T function rgammax(a::T, x::T) where {T<:AbstractFloat}
     if x == 0.0
         return 0.0
     elseif a > 20.0
@@ -82,7 +91,7 @@ function rgammax(a::Float64, x::Float64)
             return 0.0
         end
         w = -(stirling_error(a) - a*LogExpFunctions.logmxp1(t))
-        return 1/sqrt(2*Float64(π))*sqrt(a)*exp(w)
+        return 1/sqrt(2*T(π))*sqrt(a)*exp(w)
     else
         t = a*log(x) - x
         if a >= 1.0
@@ -398,8 +407,8 @@ External links: [DLMF 8.9.2](https://dlmf.nist.gov/8.9.2)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_cf(a::Float64, x::Float64, ind::Integer)
-    acc = acc0[ind + 1]
+@typed_literals T function gamma_inc_cf(a::T, x::T, ind::Integer) where {T<:AbstractFloat}
+    acc = gamma_inc_accuracy(T, ind)
     tol = 4.0*acc
     a2nm1 = 1.0
     a2n = 1.0
@@ -438,8 +447,8 @@ External links: [DLMF 8.11.2](https://dlmf.nist.gov/8.11.2)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_taylor(a::Float64, x::Float64, ind::Integer)
-    acc = acc0[ind + 1]
+@typed_literals T function gamma_inc_taylor(a::T, x::T, ind::Integer) where {T<:AbstractFloat}
+    acc = gamma_inc_accuracy(T, ind)
     tolerance = 0.5acc
 
     # compute first 21 terms
@@ -479,8 +488,8 @@ External links: [DLMF 8.11.2](https://dlmf.nist.gov/8.11.2)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_asym(a::Float64, x::Float64, ind::Integer)
-    acc = acc0[ind + 1]
+@typed_literals T function gamma_inc_asym(a::T, x::T, ind::Integer) where {T<:AbstractFloat}
+    acc = gamma_inc_accuracy(T, ind)
 
     # compute first 21 terms
     ts = cumprod(ntuple(i -> (a - i) / x, Val(21)))
@@ -524,8 +533,8 @@ This is used when `a < 1` and `x < 1.1` - Refer Eqn (9) in the
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_taylor_x(a::Float64, x::Float64, ind::Integer)
-    acc = acc0[ind + 1]
+@typed_literals T function gamma_inc_taylor_x(a::T, x::T, ind::Integer) where {T<:AbstractFloat}
+    acc = gamma_inc_accuracy(T, ind)
     l = 3.0
     c = x
     sm = x/(a + 3.0)
@@ -558,7 +567,7 @@ end
 # Combine the Temme series value `t` with the Gaussian-tail term `c*w` into (P, Q);
 # shared by gamma_inc_minimax, gamma_inc_temme, gamma_inc_temme_1's three branches,
 # and the ind=2 wide-band case in _gamma_inc.
-function _gamma_inc_temme_combine(c::Float64, w::Float64, t::Float64, rta::Float64, l::Float64)
+@typed_literals T function _gamma_inc_temme_combine(c::T, w::T, t::T, rta::T, l::T) where {T<:AbstractFloat}
     if l < 1.0
         p = c*(w - rt2pin*t/rta)
         return (p, 1.0 - p)
@@ -589,7 +598,7 @@ External links: [DLMF 8.12.8](https://dlmf.nist.gov/8.12.8)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_minimax(a::Float64, x::Float64, z::Float64)
+@typed_literals T function gamma_inc_minimax(a::T, x::T, z::T) where {T<:AbstractFloat}
     l = x/a
     s = 1.0 - l
     y = -a*LogExpFunctions.logmxp1(l)
@@ -640,7 +649,7 @@ External links: [DLMF 8.12.8](https://dlmf.nist.gov/8.12.8)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_temme(a::Float64, x::Float64, z::Float64)
+@typed_literals T function gamma_inc_temme(a::T, x::T, z::T) where {T<:AbstractFloat}
     l = x/a
     y = -a*LogExpFunctions.logmxp1(x/a)
     c = exp(-y)
@@ -667,11 +676,11 @@ Used instead of it's previous function when ``\sigma \leq e_{0}/\sqrt{a}``.
 
 External links: [DLMF 8.12.8](https://dlmf.nist.gov/8.12.8)
 """
-function gamma_inc_temme_1(a::Float64, x::Float64, z::Float64, ind::Integer)
+@typed_literals T function gamma_inc_temme_1(a::T, x::T, z::T, ind::Integer) where {T<:AbstractFloat}
     iop = ind + 1
     l = x/a
     y = -a * LogExpFunctions.logmxp1(l)
-    if a*eps()*eps() > 3.28e-3
+    if a*eps(T)*eps(T) > 3.28e-3
         throw(DomainError((a, x, ind), "P(a,x) or Q(a,x) is computationally indeterminant in this case."))
     end
     c = exp(-y)
@@ -709,7 +718,7 @@ Refer Eqn (14) in the [paper by DiDonato and Morris (1986)](@cite didonato_1986)
 
 See also: [`gamma_inc(a,x,ind)`](@ref SpecialFunctions.gamma_inc)
 """
-function gamma_inc_fsum(a::Float64, x::Float64)
+@typed_literals T function gamma_inc_fsum(a::T, x::T) where {T<:AbstractFloat}
     if isinteger(a)
         sm = exp(-x)
         t = sm
@@ -859,9 +868,9 @@ See also
 """
 gamma_inc(a::Real,x::Real,ind::Integer=0) = _gamma_inc(promote(float(a),float(x))...,ind)
 
-function _gamma_inc(a::Float64, x::Float64, ind::Integer)
+@typed_literals T function _gamma_inc(a::T, x::T, ind::Integer) where {T<:AbstractFloat}
     iop = ind + 1
-    acc = acc0[iop]
+    acc = gamma_inc_accuracy(T, ind)
     if a < 0.0 || x < 0.0
         throw(DomainError((a, x, ind), "`a` and `x` must be greater than 0 ---- Domain : (0, Inf)"))
     elseif a == 0.0 && x == 0.0
@@ -884,7 +893,7 @@ function _gamma_inc(a::Float64, x::Float64, ind::Integer)
             s = 1.0 - l
             z = -LogExpFunctions.logmxp1(l)
             if z >= 700.0/a
-                if abs(s) <= 2*eps(Float64)
+                if abs(s) <= 2*eps(T)
                     throw(DomainError((a, x, ind), "P(a,x) or Q(a,x) is computationally indeterminant in this case."))
                 end
                 if x <= a
@@ -905,7 +914,7 @@ function _gamma_inc(a::Float64, x::Float64, ind::Integer)
             end
 
             if abs(s) <= 0.4
-                if abs(s) <= 2.0*eps() && a*eps()*eps() > 3.28e-3
+                if abs(s) <= 2.0*eps(T) && a*eps(T)*eps(T) > 3.28e-3
                     throw(DomainError((a, x, ind), "P(a,x) or Q(a,x) is computationally indeterminant in this case."))
                 end
                 c = exp(-y)
@@ -926,7 +935,7 @@ function _gamma_inc(a::Float64, x::Float64, ind::Integer)
             else
                 return _gamma_inc_choose_algorithm(a, x, ind)
             end
-        elseif a > x || x >= x0[iop] || !isinteger(2*a)
+        elseif a > x || x >= x0lim[iop] || !isinteger(2*a)
             return _gamma_inc_choose_algorithm(a, x, ind)
         else
             return gamma_inc_fsum(a,x)
@@ -958,10 +967,9 @@ function _gamma_inc(a::BigFloat,x::BigFloat,ind::Integer) #BigFloat version from
     q = z/gamma(a)
     return (1.0 - q, q)
 end
-_gamma_inc(a::Float32,x::Float32,ind::Integer) = Float32.(_gamma_inc(Float64(a),Float64(x),ind))
-_gamma_inc(a::Float16,x::Float16,ind::Integer) = Float16.(_gamma_inc(Float64(a),Float64(x),ind))
+_gamma_inc(a::Float16, x::Float16, ind::Integer) = Float16.(_gamma_inc(Float32(a), Float32(x), ind))
 
-function _gamma_inc_choose_algorithm(a::Float64, x::Float64, ind::Int)
+@typed_literals T function _gamma_inc_choose_algorithm(a::T, x::T, ind::Int) where {T<:AbstractFloat}
     r = rgammax(a, x)
     if r == 0.0
         if x <= a
@@ -972,7 +980,7 @@ function _gamma_inc_choose_algorithm(a::Float64, x::Float64, ind::Int)
     end
     if x <= max(a, alog10)
         return gamma_inc_taylor(a, x, ind)
-    elseif x < x0[ind + 1]
+    elseif x < x0lim[ind + 1]
         return gamma_inc_cf(a, x, ind)
     else
         return gamma_inc_asym(a, x, ind)
