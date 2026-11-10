@@ -200,7 +200,7 @@ Compute the value of ``\lambda`` satisfying ``\eta^{2}/2 = \lambda-1-\log{\lambd
 @typed_literals T function lambdaeta(eta::T) where {T<:AbstractFloat}
     s = eta*eta*0.5
     if eta == 0.0
-        la = 1
+        la = one(T)
     elseif eta < -1.0
         r = exp(-1 - s)
         la = @evalpoly(r, 0.0, 1.0, 1.0, 1.5, 8.0/3.0, 125.0/24.0, 15.0/5.0)
@@ -220,9 +220,9 @@ Compute the value of ``\lambda`` satisfying ``\eta^{2}/2 = \lambda-1-\log{\lambd
         ak6 = -(@evalpoly(l, -120, 900, -1700, 1125, -274, 20))/120.0
         la = la + l*@evalpoly(r,0.0, ak1, ak2, ak3, ak4, ak5, ak6)
     end
-    r = 1
+    r = one(T)
     if (eta > -3.5 && eta < -0.03) || (eta > 0.03 && eta < 40)
-        r = 1
+        r = one(T)
         q = la
         while r > max(1.0e-8, 8*eps(T))
             la = q*(s + log(q))/(q - 1.0)
