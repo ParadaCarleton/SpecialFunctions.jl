@@ -421,3 +421,18 @@ run_twice(f, args...) = (f(args...); f(args...))
         @test iszero(run_twice(FT -> @allocated(gamma_inc_inv(FT(50.0), FT(0.3), FT(0.7))), FT))
     end
 end
+
+@testset "gamma_inc_inv Float32 computes in Float32" begin
+    for a in Float32[0.01, 0.05, 0.1, 0.3, 0.5, 0.9, 1, 1.5, 3, 10, 30, 100, 1000],
+        p in Float32[1e-30, 1e-10, 1e-6, 1e-3, 0.02, 0.1, 0.5, 0.9, 0.98, 0.999, 1 - 1f-6]
+        x = gamma_inc_inv(a, p, 1 - p)
+        @test x isa Float32
+        reference = gamma_inc_inv(Float64(a), Float64(p), 1 - Float64(p))
+        # Skip references outside the Float32 normal range.
+        if 1e-30 < reference < 1e30
+            @test x ≈ reference rtol=1e-5
+        end
+    end
+    @test @inferred(gamma_inc_inv(2f0, 0.5f0, 0.5f0)) isa Float32
+    @test gamma_inc_inv(Float16(2), Float16(0.5), Float16(0.5)) isa Float16
+end

@@ -1,4 +1,16 @@
 using Base.MPFR: ROUNDING_MODE
+
+"""
+    @typed_literals T expr
+
+Convert every `Float64` literal in `expr` to `T`, so generic code stays in `T`.
+"""
+macro typed_literals(T, ex)
+    return esc(_typed_literals(T, ex))
+end
+_typed_literals(T, x::Float64) = Expr(:call, T, x)
+_typed_literals(T, x::Expr) = Expr(x.head, map(arg -> _typed_literals(T, arg), x.args)...)
+_typed_literals(T, x) = x
 #useful constants
 const acc0 = (5.0e-15, 5.0e-7, 5.0e-4) #accuracy options
 const big1 = (25.0, 14.0, 10.0)
@@ -86,7 +98,7 @@ end
 
 Compute function `g` in ``1/\Gamma(x+1) = 1 + x (x-1) g(x)``, `-1 <= x <= 1`.
 """
-function auxgam(x::Float64)
+@typed_literals T function auxgam(x::T) where {T<:AbstractFloat}
     @assert -1 <= x <= 1
     xp = ifelse(x < 0, 1 + x, x)
     t = 2xp - 1
@@ -103,7 +115,7 @@ end
 
 Compute ``\log(\Gamma(1+x))`` for `-1 < x <= 1`.
 """
-function loggamma1p(x::Float64)
+@typed_literals T function loggamma1p(x::T) where {T<:AbstractFloat}
     @assert -1 < x <= 1
     return -log1p(x*(x - 1.0)*auxgam(x))
 end
@@ -113,7 +125,8 @@ end
 
 Computes a series of Chebyshev Polynomials given by: `a[1]/2 + a[2]T1(x) + .... + a[n]T{n-1}(X)`.
 """
-function chepolsum(x::Float64, a::Tuple{Float64,Vararg{Float64}})
+@typed_literals T function chepolsum(x::T, a::Tuple{Real,Vararg{Real}}) where {T<:AbstractFloat}
+    a = map(T, a)
     n = length(a)
     if n == 1
         return a[1]/2.0
@@ -137,9 +150,9 @@ end
 
 Compute ``\ln{\Gamma(x)} - (x-0.5)*\ln{x} + x - \ln{(2\pi)}/2``. Adapted from `stirling` in `IncgamFI`.
 """
-function stirling_error(x::Float64)
-    if x < floatmin(Float64)*1000.0
-        return floatmax(Float64)/1000.0
+@typed_literals T function stirling_error(x::T) where {T<:AbstractFloat}
+    if x < floatmin(T)*1000.0
+        return floatmax(T)/1000.0
     elseif x < 1
         return loggamma1p(x) - (x + 0.5)*log(x) + x - log2π/2.0
     elseif x < 2
@@ -169,13 +182,13 @@ e^{\operatorname{stirling}(x)}\quad\quad\quad \text{if} \quad x>0,\\
 \end{cases}
 ```
 """
-function gammax(x::Float64)
+@typed_literals T function gammax(x::T) where {T<:AbstractFloat}
     if x >= 3
         return exp(stirling_error(x))
     elseif x > 0
         return gamma(x)/(exp(-x + (x - 0.5)*log(x))*sqrt2π)
     else
-        return floatmax(Float64)/1000.0
+        return floatmax(T)/1000.0
     end
 end
 
@@ -184,7 +197,7 @@ end
 
 Compute the value of ``\lambda`` satisfying ``\eta^{2}/2 = \lambda-1-\log{\lambda}``.
 """
-function lambdaeta(eta::Float64)
+@typed_literals T function lambdaeta(eta::T) where {T<:AbstractFloat}
     s = eta*eta*0.5
     if eta == 0.0
         la = 1
@@ -211,7 +224,7 @@ function lambdaeta(eta::Float64)
     if (eta > -3.5 && eta < -0.03) || (eta > 0.03 && eta < 40)
         r = 1
         q = la
-        while r > 1.0e-8
+        while r > max(1.0e-8, 8*eps(T))
             la = q*(s + log(q))/(q - 1.0)
             r = abs(q/la - 1)
             q = la
@@ -227,7 +240,7 @@ Computing the first coefficient for the expansion:
 ```
 Refer Eqn (3.12) in the paper
 """
-function coeff1(eta::Float64)
+@typed_literals T function coeff1(eta::T) where {T<:AbstractFloat}
     if abs(eta) < 1.0
         coeff1 = @evalpoly(
             eta,
@@ -252,7 +265,7 @@ Computing the second coefficient for the expansion:
 ```
 Refer Eqn (3.12) in the paper
 """
-function coeff2(eta::Float64)
+@typed_literals T function coeff2(eta::T) where {T<:AbstractFloat}
 
     if eta < -5.0
         x = eta*eta
@@ -301,7 +314,7 @@ Computing the third and last coefficient for the expansion:
 ```
 Refer Eqn (3.12) in the paper
 """
-function coeff3(eta::Float64)
+@typed_literals T function coeff3(eta::T) where {T<:AbstractFloat}
     if eta < -8.0
         x=eta*eta
         y = log(-eta)/eta
@@ -735,7 +748,7 @@ x = r\left[1 + a\sum_{k=1}^{\infty}\frac{(-x)^{n}}{(a+n)n!}\right]^{-1/a},
 where ``r = (p\Gamma(1+a))^{1/a}``
 Inverting this relation we obtain ``x = r + \sum_{k=2}^{\infty} c_{k} r^{k}``.
 """
-function gamma_inc_inv_psmall(a::Float64, logr::Float64)
+@typed_literals T function gamma_inc_inv_psmall(a::T, logr::T) where {T<:AbstractFloat}
     r    = exp(logr)
     ap1  = a + 1.0
     ap1² = ap1*ap1
@@ -762,7 +775,7 @@ x \sim x_{0} - L + b \sum_{k=1}^{\infty} d_{k}/x_{0}^{k}
 ```
 where ``b = 1-a``, ``L = \ln{x_0}``.
 """
-function gamma_inc_inv_qsmall(a::Float64, q::Float64, qgammaxa::Float64)
+@typed_literals T function gamma_inc_inv_qsmall(a::T, q::T, qgammaxa::T) where {T<:AbstractFloat}
     b = 1.0 - a
     eta = sqrt(-2/a*log(qgammaxa))
     x0 = a*lambdaeta(eta)
@@ -803,7 +816,7 @@ which is calculated by [`coeff1`](@ref), [`coeff2`](@ref) and [`coeff3`](@ref) f
 This returns a tuple `(x0,fp)`, where `fp` is computed since it's an
 approximation for the coefficient after inverting the original power series.
 """
-function gamma_inc_inv_alarge(a::Float64, minpq::Float64, pcase::Bool)
+@typed_literals T function gamma_inc_inv_alarge(a::T, minpq::T, pcase::Bool) where {T<:AbstractFloat}
     r = erfcinv(2*minpq)
     s = r/sqrt(a*0.5)
     eta = pcase ? -s : s
@@ -1004,7 +1017,7 @@ function _gamma_inc_inv(a::T, p::T, q::T) where {T<:Real}
     return __gamma_inc_inv(a, minpq, pcase)
 end
 
-function __gamma_inc_inv(a::Float64, minpq::Float64, pcase::Bool)
+@typed_literals T function __gamma_inc_inv(a::T, minpq::T, pcase::Bool) where {T<:AbstractFloat}
     haseta = false
     fp = NaN
 
@@ -1029,15 +1042,15 @@ function __gamma_inc_inv(a::Float64, minpq::Float64, pcase::Bool)
         x0, fp = gamma_inc_inv_alarge(a, minpq, pcase)
     end
 
-    t = 1
+    t = one(T)
     x = x0
     n = 1
     logabsgam = logabsgamma(a)[1]
     # Newton-like higher order iteration with upper limit as 15.
-    while t > 1.0e-15 && n < 15
+    while t > max(1.0e-15, 4*eps(T)) && n < 15
         if !haseta
             dlnr = (1.0 - a)*log(x) + x + logabsgam
-            if dlnr > log(floatmax(Float64)/1000.0)
+            if dlnr > log(floatmax(T)/1000.0)
                 break
             else
                 r = exp(dlnr)
@@ -1082,8 +1095,8 @@ function __gamma_inc_inv(a::Float64, minpq::Float64, pcase::Bool)
     return x
 end
 
-function __gamma_inc_inv(a::T, minpq::T, pcase::Bool) where {T<:Union{Float16,Float32}}
-    return T(__gamma_inc_inv(Float64(a), Float64(minpq), pcase))
+function __gamma_inc_inv(a::Float16, minpq::Float16, pcase::Bool)
+    return Float16(__gamma_inc_inv(Float32(a), Float32(minpq), pcase))
 end
 
 # like promote(x,y), but don't complexify real values
