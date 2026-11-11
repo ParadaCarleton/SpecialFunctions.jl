@@ -1020,7 +1020,7 @@ function _gamma_inc_inv(a::T, p::T, q::T) where {T<:Real}
         return T(Inf)
     end
 
-    pcase = p < 0.5
+    pcase = p < oftype(p, 0.5)
     minpq = pcase ? p : q
     return __gamma_inc_inv(a, minpq, pcase)
 end
